@@ -1,19 +1,38 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
+
+// ENUMS
 
 enum UserRole {
   ADMIN
   CUSTOMER
 }
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentGatewayType {
+  STRIPE
+  SSLCOMMERZ
+  BKASH
+  NAGAD
+  COD
+}
+
+// ----------------------------
+// USER
+// ----------------------------
 
 model User {
   id        String   @id @default(uuid())
@@ -22,9 +41,15 @@ model User {
   password  String
   role      UserRole @default(CUSTOMER)
   phone     String?
+  orders    Order[]
+  cart      Cart?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ----------------------------
+// SETTINGS (store config + install lock)
+// ----------------------------
 
 model Settings {
   id            String   @id @default(uuid())
@@ -38,6 +63,10 @@ model Settings {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// ----------------------------
+// CATEGORY & PRODUCT
+// ----------------------------
 
 model Category {
   id        String     @id @default(uuid())
@@ -53,17 +82,110 @@ model Category {
 }
 
 model Product {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   name          String
-  slug          String   @unique
+  slug          String      @unique
   description   String?
   price         Float
   discountPrice Float?
-  stock         Int      @default(0)
+  stock         Int         @default(0)
   images        String[]
-  isActive      Boolean  @default(true)
+  isActive      Boolean     @default(true)
   categoryId    String
-  category      Category @relation(fields: [categoryId], references: [id])
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  category      Category    @relation(fields: [categoryId], references: [id])
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+// ----------------------------
+// CART (pre-checkout)
+// ----------------------------
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+}
+
+// ----------------------------
+// ORDER
+// ----------------------------
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  status          OrderStatus @default(PENDING)
+  totalAmount     Float
+  shippingAddress String
+  shippingPhone   String
+  paymentMethod   String?
+  isPaid          Boolean     @default(false)
+  items           OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+}
+
+// ----------------------------
+// THEME
+// ----------------------------
+
+model Theme {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  label     String
+  isActive  Boolean  @default(false)
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ----------------------------
+// PAYMENT GATEWAY
+// ----------------------------
+
+model PaymentGateway {
+  id          String             @id @default(uuid())
+  type        PaymentGatewayType
+  isActive    Boolean            @default(false)
+  credentials String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+// ----------------------------
+// MEDIA (uploaded files: logo, product images)
+// ----------------------------
+
+model Media {
+  id        String   @id @default(uuid())
+  url       String
+  fileName  String?
+  fileType  String?
+  createdAt DateTime @default(now())
 }
