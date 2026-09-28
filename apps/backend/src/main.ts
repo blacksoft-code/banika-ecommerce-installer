@@ -21,6 +21,16 @@ async function bootstrap() {
     .setTitle('Banika E-commerce API')
     .setDescription('Backend API documentation for Banika E-commerce')
     .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        in: 'header',
+      },
+      'access-token', // এই নামটাই controller-এ reference করা হবে
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
