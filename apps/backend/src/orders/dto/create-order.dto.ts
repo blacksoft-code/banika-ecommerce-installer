@@ -16,7 +16,7 @@ export class OrderItemDto {
   @IsNotEmpty()
   productId: string;
 
-  @ApiProperty({ example: 2 })
+  @ApiProperty({ example: 5 })
   @IsInt()
   @Min(1)
   quantity: number;

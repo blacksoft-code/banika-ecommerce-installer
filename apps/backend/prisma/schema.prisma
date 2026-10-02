@@ -43,6 +43,9 @@ model User {
   phone     String?
   orders    Order[]
   cart      Cart?
+
+  wishlist  WishlistItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -95,6 +98,7 @@ model Product {
   category      Category    @relation(fields: [categoryId], references: [id])
   orderItems    OrderItem[]
   cartItems     CartItem[]
+  wishlistedBy  WishlistItem[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
@@ -103,24 +107,82 @@ model Product {
 // CART (pre-checkout)
 // ----------------------------
 
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+}
+
 model Cart {
-  id        String     @id @default(uuid())
-  userId    String     @unique
-  user      User       @relation(fields: [userId], references: [id])
-  items     CartItem[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id         String     @id @default(uuid())
+  userId     String?    @unique
+  user       User?      @relation(fields: [userId], references: [id])
+  guestToken String?    @unique
+  status     CartStatus @default(ACTIVE)
+  couponCode String?
+  items      CartItem[]
+  lastActivityAt DateTime @default(now())
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 }
 
 model CartItem {
-  id        String  @id @default(uuid())
-  cartId    String
-  cart      Cart    @relation(fields: [cartId], references: [id])
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int     @default(1)
+  id            String   @id @default(uuid())
+  cartId        String
+  cart          Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  quantity      Int      @default(1)
+  priceAtAdd    Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([cartId, productId])
 }
 
+model WishlistItem {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+  FREE_SHIPPING
+}
+
+model Coupon {
+  id             String     @id @default(uuid())
+  code           String     @unique
+  type           CouponType
+  value          Float
+  minOrderAmount Float?
+  maxDiscount    Float?
+  usageLimit     Int?
+  usedCount      Int        @default(0)
+  perUserLimit   Int?
+  isActive       Boolean    @default(true)
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model ShippingMethod {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  rate        Float
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
 // ----------------------------
 // ORDER
 // ----------------------------
