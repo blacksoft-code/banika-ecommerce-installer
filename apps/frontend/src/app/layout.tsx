@@ -1,6 +1,18 @@
 import type { Metadata } from "next";
+import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+
+const display = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["500", "600"],
+});
+
+const body = Inter({
+  subsets: ["latin"],
+  variable: "--font-body",
+});
 
 export const metadata: Metadata = {
   title: "Banika Store",
@@ -14,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className={`${display.variable} ${body.variable}`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

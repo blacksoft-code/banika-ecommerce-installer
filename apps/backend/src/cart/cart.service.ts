@@ -6,6 +6,7 @@ import {
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponsService } from '../coupons/coupons.service';
+import { CheckoutDto } from './dto/checkout.dto';
 
 type CartIdentity = { userId?: string; guestToken?: string };
 
@@ -16,16 +17,22 @@ export class CartService {
     private couponsService: CouponsService,
   ) {}
 
-  private async getOrCreateCart(identity: CartIdentity) {
-    if (identity.userId) {
-      let cart = await this.prisma.cart.findUnique({
-        where: { userId: identity.userId },
+ private async getOrCreateCart(identity: CartIdentity) {
+  if (identity.userId) {
+    let cart = await this.prisma.cart.findUnique({
+      where: { userId: identity.userId },
+    });
+    if (!cart) {
+      cart = await this.prisma.cart.create({
+        data: { userId: identity.userId },
       });
-      if (!cart) {
-        cart = await this.prisma.cart.create({
-          data: { userId: identity.userId },
-        });
-      }
+    } else if (cart.status !== 'ACTIVE') {
+      // আগের CONVERTED/ABANDONED cart পুনরায় ব্যবহারযোগ্য করা হচ্ছে
+      cart = await this.prisma.cart.update({
+        where: { id: cart.id },
+        data: { status: 'ACTIVE' },
+      });
+    }
       return cart;
     }
 
@@ -331,4 +338,127 @@ export class CartService {
     await this.touchCart(userCart.id);
     return this.formatCart(userCart.id);
   }
+
+    // ---------------- CHECKOUT (Cart → Order conversion) ----------------
+  private generateOrderNumber() {
+    const time = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `ORD-${time}${rand}`;
+  }
+
+  async checkout(userId: string, dto: CheckoutDto) {
+    const cart = await this.getOrCreateCart({ userId });
+
+    return this.prisma.$transaction(async (tx) => {
+      // ১. Duplicate-click/double-submit protection — atomic flag flip
+    const locked = await tx.cart.updateMany({
+        where: { id: cart.id, status: 'ACTIVE' },
+        data: { status: 'CONVERTED' },
+      });
+      if (locked.count === 0) {
+        throw new BadRequestException(
+          'This cart is already being checked out or has no items.',
+        );
+      }
+
+      const items = await tx.cartItem.findMany({
+        where: { cartId: cart.id },
+        include: { product: true },
+      });
+
+      if (items.length === 0) {
+        throw new BadRequestException('Your cart is empty.');
+      }
+
+      // ২. Final stock + active-product validation, দাম এখন lock হচ্ছে
+      let subtotal = 0;
+      const orderItems: { productId: string; quantity: number; price: number }[] = [];
+
+      for (const item of items) {
+        if (!item.product.isActive) {
+          throw new BadRequestException(`"${item.product.name}" is no longer available.`);
+        }
+        const unitPrice = item.product.discountPrice ?? item.product.price;
+        subtotal += unitPrice * item.quantity;
+        orderItems.push({
+          productId: item.productId,
+          quantity: item.quantity,
+          price: unitPrice,
+        });
+
+        const updated = await tx.product.updateMany({
+          where: { id: item.productId, stock: { gte: item.quantity } },
+          data: { stock: { decrement: item.quantity } },
+        });
+        if (updated.count === 0) {
+          throw new BadRequestException(
+            `Not enough stock for "${item.product.name}".`,
+          );
+        }
+      }
+
+      // ৩. Coupon আবার যাচাই (checkout মুহূর্তে)
+      let couponDiscount = 0;
+      let appliedCoupon: { id: string } | null = null;
+
+      if (cart.couponCode) {
+        const coupon = await tx.coupon.findUnique({
+          where: { code: cart.couponCode },
+        });
+        const now = new Date();
+        const valid =
+          coupon &&
+          coupon.isActive &&
+          (!coupon.startsAt || coupon.startsAt <= now) &&
+          (!coupon.expiresAt || coupon.expiresAt >= now) &&
+          (!coupon.usageLimit || coupon.usedCount < coupon.usageLimit) &&
+          (!coupon.minOrderAmount || subtotal >= coupon.minOrderAmount);
+
+        if (valid && coupon) {
+          if (coupon.type === 'PERCENTAGE') {
+            couponDiscount = (subtotal * coupon.value) / 100;
+            if (coupon.maxDiscount) {
+              couponDiscount = Math.min(couponDiscount, coupon.maxDiscount);
+            }
+          } else if (coupon.type === 'FIXED') {
+            couponDiscount = Math.min(coupon.value, subtotal);
+          }
+          appliedCoupon = { id: coupon.id };
+        }
+        // ভ্যালিড না হলে coupon silently বাদ (subtotal-ই total হবে, checkout আটকাবে না)
+      }
+
+      const totalAmount = Math.max(0, subtotal - couponDiscount);
+
+      const order = await tx.order.create({
+        data: {
+          orderNumber: this.generateOrderNumber(),
+          userId,
+          totalAmount,
+          shippingAddress: dto.shippingAddress,
+          shippingPhone: dto.shippingPhone,
+          paymentMethod: dto.paymentMethod,
+          items: { create: orderItems },
+        },
+        include: { items: { include: { product: true } } },
+      });
+
+      if (appliedCoupon) {
+        await tx.coupon.update({
+          where: { id: appliedCoupon.id },
+          data: { usedCount: { increment: 1 } },
+        });
+      }
+
+      // ৪. Cart খালি করা + CONVERTED মার্ক করা
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      await tx.cart.update({
+        where: { id: cart.id },
+        data: { couponCode: null },
+      });
+
+      return order;
+    });
+  }
+  //last brac
 }

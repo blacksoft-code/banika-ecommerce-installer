@@ -20,7 +20,7 @@ import { MergeCartDto } from './dto/merge-cart.dto';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApplyCouponDto } from './dto/apply-coupon.dto';
-
+import { CheckoutDto } from './dto/checkout.dto';
 type OptionalAuthRequest = { user?: { userId: string } };
 
 @ApiTags('Cart')
@@ -140,5 +140,12 @@ export class CartController {
   ) {
     const identity = this.resolveIdentity(req, guestToken);
     return this.cartService.removeCoupon(identity);
+  }
+  
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Post('checkout')
+  checkout(@Req() req: { user: { userId: string } }, @Body() dto: CheckoutDto) {
+    return this.cartService.checkout(req.user.userId, dto);
   }
 }
