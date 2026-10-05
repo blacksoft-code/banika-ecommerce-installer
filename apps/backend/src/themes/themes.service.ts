@@ -11,6 +11,11 @@ export class ThemesService {
     return this.prisma.theme.findMany({ orderBy: { createdAt: 'asc' } });
   }
 
+  async findActive() {
+    const theme = await this.prisma.theme.findFirst({ where: { isActive: true } });
+    return theme ? { name: theme.name, config: theme.config } : null;
+  }
+
   async create(dto: CreateThemeDto) {
     const existing = await this.prisma.theme.findUnique({ where: { name: dto.name } });
     if (existing) throw new ConflictException('A theme with this name already exists.');

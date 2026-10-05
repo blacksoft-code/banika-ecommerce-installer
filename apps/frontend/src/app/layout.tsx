@@ -19,13 +19,47 @@ export const metadata: Metadata = {
   description: "Your online store",
 };
 
-export default function RootLayout({
+type ActiveTheme = {
+  name: string;
+  config: { primaryColor?: string; accentColor?: string } | null;
+} | null;
+
+async function getActiveTheme(): Promise<ActiveTheme> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/themes/active`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    // Backend অফলাইন থাকলেও site যেন ভেঙে না পড়ে, ডিফল্ট রঙেই render হবে
+    return null;
+  }
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const activeTheme = await getActiveTheme();
+  const primaryColor = activeTheme?.config?.primaryColor;
+  const accentColor = activeTheme?.config?.accentColor;
+
   return (
     <html lang="en">
+      <head>
+        {(primaryColor || accentColor) && (
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `:root {
+                ${primaryColor ? `--color-ink: ${primaryColor};` : ""}
+                ${accentColor ? `--color-marigold: ${accentColor};` : ""}
+              }`,
+            }}
+          />
+        )}
+      </head>
       <body className={`${display.variable} ${body.variable}`}>
         <AuthProvider>{children}</AuthProvider>
       </body>

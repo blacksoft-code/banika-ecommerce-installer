@@ -18,6 +18,11 @@ export class ThemesController {
     return this.themesService.findAll();
   }
 
+  @Get('active')
+    findActive() {
+    return this.themesService.findActive();
+  }
+
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')

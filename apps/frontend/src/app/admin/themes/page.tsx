@@ -17,6 +17,7 @@ export default function AdminThemesPage() {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -28,24 +29,48 @@ export default function AdminThemesPage() {
 
   useEffect(loadAll, []);
 
+  function openCreate() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    setError('');
+  }
+
+  function openEdit(t: Theme) {
+    setEditingId(t.id);
+    setForm({
+      name: t.name,
+      label: t.label,
+      primaryColor: t.config?.primaryColor ?? '#14213d',
+      accentColor: t.config?.accentColor ?? '#e8a33d',
+    });
+    setShowForm(true);
+    setError('');
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setSaving(true);
     try {
-      await adminFetch('/themes', {
-        method: 'POST',
-        body: {
-          name: form.name,
-          label: form.label,
-          config: { primaryColor: form.primaryColor, accentColor: form.accentColor },
-        },
-      });
+      const body = {
+        name: form.name,
+        label: form.label,
+        config: { primaryColor: form.primaryColor, accentColor: form.accentColor },
+      };
+
+      if (editingId) {
+        await adminFetch(`/themes/${editingId}`, { method: 'PATCH', body });
+      } else {
+        await adminFetch('/themes', { method: 'POST', body });
+      }
+
       setShowForm(false);
       setForm(emptyForm);
+      setEditingId(null);
       loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create theme.');
+      setError(err instanceof Error ? err.message : 'Could not save theme.');
     } finally {
       setSaving(false);
     }
@@ -77,7 +102,7 @@ export default function AdminThemesPage() {
           Themes
         </h1>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={openCreate}
           className="bg-[var(--color-ink)] px-4 py-2 text-sm text-[var(--color-paper)] hover:bg-[var(--color-marigold)] hover:text-[var(--color-ink)]"
         >
           + Add theme
@@ -85,7 +110,7 @@ export default function AdminThemesPage() {
       </div>
 
       <p className="mt-2 text-sm text-[var(--color-stone)]">
-        Manage which theme is active. Color customization is saved here for future use.
+        Manage which theme is active. Activating a theme updates the live storefront colors.
       </p>
 
       {showForm && (
@@ -93,7 +118,9 @@ export default function AdminThemesPage() {
           onSubmit={handleSubmit}
           className="mt-6 grid grid-cols-2 gap-4 border border-[var(--color-ink)]/10 p-6"
         >
-          <h2 className="col-span-2 font-[var(--font-display)] text-lg">New theme</h2>
+          <h2 className="col-span-2 font-[var(--font-display)] text-lg">
+            {editingId ? 'Edit theme' : 'New theme'}
+          </h2>
           {error && (
             <p className="col-span-2 border-l-2 border-[var(--color-clay)] pl-3 text-sm text-[var(--color-clay)]">
               {error}
@@ -141,11 +168,14 @@ export default function AdminThemesPage() {
               disabled={saving}
               className="bg-[var(--color-ink)] px-5 py-2 text-sm text-[var(--color-paper)] hover:bg-[var(--color-marigold)] hover:text-[var(--color-ink)] disabled:opacity-50"
             >
-              {saving ? 'Saving…' : 'Create'}
+              {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingId(null);
+              }}
               className="text-sm text-[var(--color-stone)] underline"
             >
               Cancel
@@ -186,6 +216,9 @@ export default function AdminThemesPage() {
                 )}
               </div>
               <div className="mt-4 flex gap-4 text-sm">
+                <button onClick={() => openEdit(t)} className="underline">
+                  Edit
+                </button>
                 {!t.isActive && (
                   <button onClick={() => activate(t.id)} className="underline">
                     Activate

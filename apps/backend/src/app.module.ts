@@ -14,6 +14,7 @@ import { PaymentModule } from './payment/payment.module';
 import { ShippingMethodsModule } from './shipping-methods/shipping-methods.module';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { ThemesModule } from './themes/themes.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -29,7 +30,8 @@ import { ThemesModule } from './themes/themes.module';
     PaymentModule,
     ShippingMethodsModule,
     WishlistModule,
-    ThemesModule
+    ThemesModule,
+    SettingsModule
   ],
   controllers: [AppController],
   providers: [AppService],
