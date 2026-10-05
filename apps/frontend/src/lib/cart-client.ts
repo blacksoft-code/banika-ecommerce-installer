@@ -96,10 +96,12 @@ export const cartClient = {
     cartFetch('/cart/coupon', { method: 'DELETE' }),
 
     checkout: (data: {
-    shippingAddress: string;
-    shippingPhone: string;
-    paymentMethod?: string;
-  }) =>
+      shippingAddress: string;
+      shippingPhone: string;
+      paymentMethod?: string;
+      shippingMethodId?: string;
+    }) =>
+
     cartFetch('/cart/checkout', {
       method: 'POST',
       body: JSON.stringify(data),

@@ -428,20 +428,35 @@ export class CartService {
         // ভ্যালিড না হলে coupon silently বাদ (subtotal-ই total হবে, checkout আটকাবে না)
       }
 
-      const totalAmount = Math.max(0, subtotal - couponDiscount);
+        let shippingFee = 0;
+        let shippingMethodName: string | undefined;
 
-      const order = await tx.order.create({
-        data: {
-          orderNumber: this.generateOrderNumber(),
-          userId,
-          totalAmount,
-          shippingAddress: dto.shippingAddress,
-          shippingPhone: dto.shippingPhone,
-          paymentMethod: dto.paymentMethod,
-          items: { create: orderItems },
-        },
-        include: { items: { include: { product: true } } },
-      });
+        if (dto.shippingMethodId) {
+          const method = await tx.shippingMethod.findUnique({
+            where: { id: dto.shippingMethodId },
+          });
+          if (method && method.isActive) {
+            shippingFee = method.rate;
+            shippingMethodName = method.name;
+          }
+        }
+
+        const totalAmount = Math.max(0, subtotal - couponDiscount) + shippingFee;
+
+        const order = await tx.order.create({
+          data: {
+            orderNumber: this.generateOrderNumber(),
+            userId,
+            totalAmount,
+            shippingFee,
+            shippingMethodName,
+            shippingAddress: dto.shippingAddress,
+            shippingPhone: dto.shippingPhone,
+            paymentMethod: dto.paymentMethod,
+            items: { create: orderItems },
+          },
+          include: { items: { include: { product: true } } },
+        });
 
       if (appliedCoupon) {
         await tx.coupon.update({

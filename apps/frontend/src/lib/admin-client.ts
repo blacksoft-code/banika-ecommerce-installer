@@ -24,3 +24,22 @@ export async function adminFetch<T>(
   if (res.status === 204) return undefined as T;
   return res.json();
 }
+
+export async function uploadMedia(file: File): Promise<{ url: string }> {
+  const token = localStorage.getItem('banika_token');
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_URL}/media/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || 'Upload failed.');
+  }
+
+  return res.json();
+}

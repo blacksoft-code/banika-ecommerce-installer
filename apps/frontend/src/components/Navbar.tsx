@@ -16,18 +16,31 @@ export function Navbar() {
           <Link href="/cart" className="text-[var(--color-ink)] hover:text-[var(--color-marigold)]">
             Cart
           </Link>
-          {user ? (
-            <button
-              onClick={logout}
-              className="text-[var(--color-ink)] hover:text-[var(--color-marigold)]"
-            >
-              Log out
-            </button>
-          ) : (
-            <Link href="/login" className="text-[var(--color-ink)] hover:text-[var(--color-marigold)]">
-              Log in
-            </Link>
-          )}
+
+            {user && (
+              <Link href="/orders" className="text-[var(--color-ink)] hover:text-[var(--color-marigold)]">
+                My Orders
+              </Link>
+            )}
+
+            {user && (
+              <Link href="/wishlist" className="text-[var(--color-ink)] hover:text-[var(--color-marigold)]">
+                Wishlist
+              </Link>
+            )}
+
+            {user ? (
+              <button
+                onClick={logout}
+                className="text-[var(--color-ink)] hover:text-[var(--color-marigold)]"
+              >
+                Log out
+              </button>
+            ) : (
+              <Link href="/login" className="text-[var(--color-ink)] hover:text-[var(--color-marigold)]">
+                Log in
+              </Link>
+            )}
         </nav>
       </div>
     </header>

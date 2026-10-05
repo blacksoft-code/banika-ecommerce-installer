@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminFetch } from '@/lib/admin-client';
+import { adminFetch, uploadMedia } from '@/lib/admin-client';
 
 type Category = { id: string; name: string };
 type Product = {
@@ -14,6 +14,7 @@ type Product = {
   isActive: boolean;
   categoryId: string;
   category: { name: string };
+  images: string[];
 };
 
 const emptyForm = {
@@ -25,6 +26,7 @@ const emptyForm = {
   stock: '',
   categoryId: '',
   isActive: true,
+  images: [] as string[],
 };
 
 export default function AdminProductsPage() {
@@ -36,6 +38,7 @@ export default function AdminProductsPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   function loadAll() {
     setLoading(true);
@@ -70,9 +73,26 @@ export default function AdminProductsPage() {
       stock: String(p.stock),
       categoryId: p.categoryId,
       isActive: p.isActive,
+      images: p.images ?? [],
     });
     setShowForm(true);
     setError('');
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const result = await uploadMedia(file);
+      const fullUrl = `${process.env.NEXT_PUBLIC_API_URL}${result.url}`;
+      setForm({ ...form, images: [fullUrl] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -89,6 +109,7 @@ export default function AdminProductsPage() {
         stock: Number(form.stock),
         categoryId: form.categoryId,
         isActive: form.isActive,
+        images: form.images,
       };
 
       if (editingId) {
@@ -209,6 +230,31 @@ export default function AdminProductsPage() {
               ))}
             </select>
           </div>
+
+          <div className="col-span-2">
+            <label className={labelClass}>Product image</label>
+            <div className="mt-1 flex items-center gap-4">
+              {form.images[0] && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={form.images[0]}
+                  alt="Preview"
+                  className="h-16 w-16 object-cover"
+                />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={uploading}
+                className="text-sm"
+              />
+            </div>
+            {uploading && (
+              <p className="mt-1 text-xs text-[var(--color-stone)]">Uploading…</p>
+            )}
+          </div>
+
           <div className="col-span-2">
             <label className={labelClass}>Description (optional)</label>
             <textarea
@@ -230,7 +276,7 @@ export default function AdminProductsPage() {
           <div className="col-span-2 flex gap-3">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || uploading}
               className="bg-[var(--color-ink)] px-5 py-2 text-sm text-[var(--color-paper)] hover:bg-[var(--color-marigold)] hover:text-[var(--color-ink)] disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Save'}

@@ -14,4 +14,9 @@ export class CheckoutDto {
   @IsOptional()
   @IsString()
   paymentMethod?: string;
+
+  @ApiPropertyOptional({ example: 'shipping-method-id-here' })
+  @IsOptional()
+  @IsString()
+  shippingMethodId?: string;
 }

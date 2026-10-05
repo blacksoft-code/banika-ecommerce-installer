@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { Navbar } from '@/components/Navbar';
-
+import { useAuth } from '@/context/AuthContext';
 type Product = {
   id: string;
   name: string;
@@ -25,6 +25,8 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState('');
+  const { token } = useAuth();
+  const [wishlistMsg, setWishlistMsg] = useState('');
 
   useEffect(() => {
     // backend-এ slug দিয়ে না, id দিয়ে lookup হয় — তাই সব প্রোডাক্ট এনে slug মিলিয়ে বের করছি
@@ -75,6 +77,28 @@ export default function ProductDetailPage() {
       setAdding(false);
     }
   }
+
+    async function handleAddToWishlist() {
+    if (!product) return;
+    if (!token) {
+      setWishlistMsg('Please log in to save items.');
+      return;
+    }
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/wishlist/${product.id}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message);
+      }
+      setWishlistMsg('Saved to wishlist.');
+    } catch (err) {
+      setWishlistMsg(err instanceof Error ? err.message : 'Something went wrong.');
+    }
+  }
+
 
   if (notFound) {
     return (
@@ -160,6 +184,16 @@ export default function ProductDetailPage() {
               >
                 {adding ? 'Adding…' : 'Add to cart'}
               </button>
+
+              <button
+                onClick={handleAddToWishlist}
+                className="mt-3 text-sm text-[var(--color-ink)] underline underline-offset-4"
+              >
+                Save for later
+              </button>
+              {wishlistMsg && (
+                <p className="mt-2 text-sm text-[var(--color-stone)]">{wishlistMsg}</p>
+              )}
             </div>
           )}
 

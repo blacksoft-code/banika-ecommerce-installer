@@ -6,6 +6,8 @@ import { Navbar } from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
 import { cartClient, CartResponse } from '@/lib/cart-client';
 
+type ShippingMethod = { id: string; name: string; rate: number };
+
 export default function CheckoutPage() {
   const { token, isLoading } = useAuth();
   const router = useRouter();
@@ -16,6 +18,8 @@ export default function CheckoutPage() {
     shippingPhone: '',
     paymentMethod: 'COD',
   });
+  const [methods, setMethods] = useState<ShippingMethod[]>([]);
+  const [shippingMethodId, setShippingMethodId] = useState('');
   const [error, setError] = useState('');
   const [placing, setPlacing] = useState(false);
 
@@ -31,12 +35,21 @@ export default function CheckoutPage() {
     }
   }, [token]);
 
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/shipping-methods`)
+      .then((res) => res.json())
+      .then((data: ShippingMethod[]) => {
+        setMethods(data);
+        if (data.length > 0) setShippingMethodId(data[0].id);
+      });
+  }, []);
+
   async function handlePlaceOrder(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setPlacing(true);
     try {
-      const order = await cartClient.checkout(form);
+      const order = await cartClient.checkout({ ...form, shippingMethodId });
       router.push(`/orders/${order.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not place order.');
@@ -70,6 +83,7 @@ export default function CheckoutPage() {
   const inputClass =
     'mt-1 w-full border-b border-[var(--color-ink)]/20 bg-transparent py-2 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-marigold)]';
   const labelClass = 'text-sm text-[var(--color-stone)]';
+  const shippingFee = methods.find((m) => m.id === shippingMethodId)?.rate ?? 0;
 
   return (
     <div>
@@ -107,6 +121,24 @@ export default function CheckoutPage() {
                 onChange={(e) => setForm({ ...form, shippingPhone: e.target.value })}
               />
             </div>
+
+            {methods.length > 0 && (
+              <div>
+                <label className={labelClass}>Shipping method</label>
+                <select
+                  className={inputClass}
+                  value={shippingMethodId}
+                  onChange={(e) => setShippingMethodId(e.target.value)}
+                >
+                  {methods.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} — ৳{m.rate}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div>
               <label className={labelClass}>Payment method</label>
               <select
@@ -152,9 +184,15 @@ export default function CheckoutPage() {
                   <span>−৳{cart.pricing.couponDiscount}</span>
                 </div>
               )}
+              {shippingMethodId && (
+                <div className="flex justify-between">
+                  <span className="text-[var(--color-stone)]">Shipping</span>
+                  <span>৳{shippingFee}</span>
+                </div>
+              )}
               <div className="flex justify-between font-medium">
                 <span>Total</span>
-                <span>৳{cart.pricing.total}</span>
+                <span>৳{cart.pricing.total + shippingFee}</span>
               </div>
             </div>
           </div>

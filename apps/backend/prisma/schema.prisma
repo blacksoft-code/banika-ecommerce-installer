@@ -188,19 +188,21 @@ model ShippingMethod {
 // ----------------------------
 
 model Order {
-  id              String      @id @default(uuid())
-  orderNumber     String      @unique
-  userId          String
-  user            User        @relation(fields: [userId], references: [id])
-  status          OrderStatus @default(PENDING)
-  totalAmount     Float
-  shippingAddress String
-  shippingPhone   String
-  paymentMethod   String?
-  isPaid          Boolean     @default(false)
-  items           OrderItem[]
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id                 String      @id @default(uuid())
+  orderNumber        String      @unique
+  userId             String
+  user               User        @relation(fields: [userId], references: [id])
+  status             OrderStatus @default(PENDING)
+  totalAmount        Float
+  shippingFee        Float       @default(0)
+  shippingMethodName String?
+  shippingAddress    String
+  shippingPhone      String
+  paymentMethod      String?
+  isPaid             Boolean     @default(false)
+  items              OrderItem[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 }
 
 model OrderItem {
