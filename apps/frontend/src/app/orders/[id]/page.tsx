@@ -23,7 +23,7 @@ export default function OrderConfirmationPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/orders/${params.id}`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/${params.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())

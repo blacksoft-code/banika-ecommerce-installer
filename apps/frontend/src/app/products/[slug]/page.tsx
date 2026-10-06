@@ -48,7 +48,7 @@ export default function ProductDetailPage() {
       const token = localStorage.getItem('banika_token');
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/cart/items`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/cart/items`,
         {
           method: 'POST',
           headers: {
@@ -85,7 +85,7 @@ export default function ProductDetailPage() {
       return;
     }
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/wishlist/${product.id}`, {
+     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wishlist/${product.id}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

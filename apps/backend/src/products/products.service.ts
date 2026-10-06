@@ -11,12 +11,15 @@ export class ProductsService {
     return this.prisma.product.create({ data: dto });
   }
 
-  findAll() {
-    return this.prisma.product.findMany({
-      where: { isActive: true },
-      include: { category: true },
-    });
-  }
+  findAll(categorySlug?: string) {
+  return this.prisma.product.findMany({
+    where: {
+      isActive: true,
+      ...(categorySlug ? { category: { slug: categorySlug } } : {}),
+    },
+    include: { category: true },
+  });
+}
 
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({

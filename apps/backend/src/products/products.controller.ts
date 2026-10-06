@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -22,10 +23,10 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   // ---------- Public routes ----------
-  @Get()
-  findAll() {
-    return this.productsService.findAll();
-  }
+ @Get()
+findAll(@Query('category') category?: string) {
+  return this.productsService.findAll(category);
+}
 
   @Get(':id')
   findOne(@Param('id') id: string) {

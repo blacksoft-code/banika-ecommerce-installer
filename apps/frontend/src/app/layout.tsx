@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { Footer } from "@/components/Footer";
 
 const display = Playfair_Display({
   subsets: ["latin"],
@@ -26,7 +27,7 @@ type ActiveTheme = {
 
 async function getActiveTheme(): Promise<ActiveTheme> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/themes/active`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/themes/active`, {
       cache: "no-store",
     });
     if (!res.ok) return null;
@@ -60,9 +61,12 @@ export default async function RootLayout({
           />
         )}
       </head>
-      <body className={`${display.variable} ${body.variable}`}>
-        <AuthProvider>{children}</AuthProvider>
-      </body>
+      <body className={`${display.variable} ${body.variable} flex min-h-screen flex-col`}>
+  <AuthProvider>
+    <div className="flex-1">{children}</div>
+    <Footer />
+  </AuthProvider>
+</body>
     </html>
   );
 }

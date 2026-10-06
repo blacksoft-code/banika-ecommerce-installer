@@ -36,7 +36,7 @@ export default function CheckoutPage() {
   }, [token]);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/shipping-methods`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/shipping-methods`)
       .then((res) => res.json())
       .then((data: ShippingMethod[]) => {
         setMethods(data);

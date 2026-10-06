@@ -9,14 +9,24 @@ type StoreInfo = {
   businessLogo: string | null;
 };
 
+type Category = { id: string; name: string; slug: string };
+
 export function Navbar() {
   const { user, logout } = useAuth();
   const [store, setStore] = useState<StoreInfo | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/settings`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/settings`)
       .then((res) => res.json())
       .then(setStore)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/categories`)
+      .then((res) => res.json())
+      .then((data: Category[]) => setCategories(data.slice(0, 6)))
       .catch(() => {});
   }, []);
 
@@ -65,6 +75,22 @@ export function Navbar() {
           )}
         </nav>
       </div>
+
+      {categories.length > 0 && (
+        <div className="border-t border-[var(--color-ink)]/5 bg-[var(--color-paper)]">
+          <div className="mx-auto flex max-w-6xl gap-5 overflow-x-auto px-6 py-2 text-sm">
+            {categories.map((c) => (
+              <Link
+                key={c.id}
+                href={`/category/${c.slug}`}
+                className="whitespace-nowrap text-[var(--color-stone)] hover:text-[var(--color-marigold)]"
+              >
+                {c.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

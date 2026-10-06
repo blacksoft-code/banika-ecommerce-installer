@@ -58,4 +58,10 @@ export class OrdersController {
   updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto) {
     return this.ordersService.updateStatus(id, dto.status);
   }
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @Get('stats/summary')
+  getStats() {
+    return this.ordersService.getStats();
+  }
 }

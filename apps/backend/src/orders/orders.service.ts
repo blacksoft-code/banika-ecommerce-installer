@@ -175,5 +175,62 @@ export class OrdersService {
     });
   }
 
+    // ---------------- Admin Dashboard Analytics ----------------
+  async getStats() {
+    const [totalOrders, pendingOrders, revenueAgg, statusGroups, lowStockCount] =
+      await Promise.all([
+        this.prisma.order.count(),
+        this.prisma.order.count({ where: { status: 'PENDING' } }),
+        this.prisma.order.aggregate({
+          where: { status: { not: 'CANCELLED' } },
+          _sum: { totalAmount: true },
+        }),
+        this.prisma.order.groupBy({
+          by: ['status'],
+          _count: { _all: true },
+        }),
+        this.prisma.product.count({ where: { stock: { lt: 10 } } }),
+      ]);
+
+    const totalRevenue = revenueAgg._sum.totalAmount ?? 0;
+    const nonCancelledCount = statusGroups
+      .filter((g) => g.status !== 'CANCELLED')
+      .reduce((sum, g) => sum + g._count._all, 0);
+    const averageOrderValue = nonCancelledCount > 0 ? totalRevenue / nonCancelledCount : 0;
+
+    // শেষ ৭ দিনের revenue — দিনভিত্তিক breakdown
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const recentOrders = await this.prisma.order.findMany({
+      where: { createdAt: { gte: sevenDaysAgo }, status: { not: 'CANCELLED' } },
+      select: { totalAmount: true, createdAt: true },
+    });
+
+    const revenueByDay: { date: string; total: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const day = new Date();
+      day.setDate(day.getDate() - i);
+      const dayKey = day.toISOString().slice(0, 10);
+      const total = recentOrders
+        .filter((o) => o.createdAt.toISOString().slice(0, 10) === dayKey)
+        .reduce((sum, o) => sum + o.totalAmount, 0);
+      revenueByDay.push({ date: dayKey, total });
+    }
+
+    return {
+      totalRevenue,
+      totalOrders,
+      pendingOrders,
+      averageOrderValue,
+      lowStockCount,
+      ordersByStatus: statusGroups.map((g) => ({
+        status: g.status,
+        count: g._count._all,
+      })),
+      revenueByDay,
+    };
+  }
   //last brac
 }

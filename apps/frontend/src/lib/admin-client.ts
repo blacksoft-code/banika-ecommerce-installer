@@ -6,7 +6,7 @@ export async function adminFetch<T>(
 ): Promise<T> {
   const token = localStorage.getItem('banika_token');
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_URL}/api${path}`, {
     method: options.method ?? 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -30,7 +30,7 @@ export async function uploadMedia(file: File): Promise<{ url: string }> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${API_URL}/media/upload`, {
+  const res = await fetch(`${API_URL}/api/media/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formData,

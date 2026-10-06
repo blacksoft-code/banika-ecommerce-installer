@@ -22,7 +22,7 @@ export async function apiClient<T>(
     headers['x-guest-token'] = options.guestToken;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_URL}/api${path}`, {
     method: options.method ?? 'GET',
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,

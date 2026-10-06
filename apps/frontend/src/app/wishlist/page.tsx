@@ -34,7 +34,7 @@ export default function WishlistPage() {
   function load() {
     if (!token) return;
     setLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/wishlist`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wishlist`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -45,7 +45,7 @@ export default function WishlistPage() {
   useEffect(load, [token]);
 
   async function remove(productId: string) {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/wishlist/${productId}`, {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wishlist/${productId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

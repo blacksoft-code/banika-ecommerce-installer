@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,22 +18,21 @@ export class CartService {
     private couponsService: CouponsService,
   ) {}
 
- private async getOrCreateCart(identity: CartIdentity) {
-  if (identity.userId) {
-    let cart = await this.prisma.cart.findUnique({
-      where: { userId: identity.userId },
-    });
-    if (!cart) {
-      cart = await this.prisma.cart.create({
-        data: { userId: identity.userId },
+  private async getOrCreateCart(identity: CartIdentity) {
+    if (identity.userId) {
+      let cart = await this.prisma.cart.findUnique({
+        where: { userId: identity.userId },
       });
-    } else if (cart.status !== 'ACTIVE') {
-      // আগের CONVERTED/ABANDONED cart পুনরায় ব্যবহারযোগ্য করা হচ্ছে
-      cart = await this.prisma.cart.update({
-        where: { id: cart.id },
-        data: { status: 'ACTIVE' },
-      });
-    }
+      if (!cart) {
+        cart = await this.prisma.cart.create({
+          data: { userId: identity.userId },
+        });
+      } else if (cart.status !== 'ACTIVE') {
+        cart = await this.prisma.cart.update({
+          where: { id: cart.id },
+          data: { status: 'ACTIVE' },
+        });
+      }
       return cart;
     }
 
@@ -96,7 +96,6 @@ export class CartService {
 
     const productDiscount = Math.max(0, originalTotal - subtotal);
 
-    // ---------- Coupon recalculate ----------
     let couponDiscount = 0;
     let freeShipping = false;
     let couponMessage: string | undefined;
@@ -111,7 +110,6 @@ export class CartService {
         couponDiscount = result.discount;
         freeShipping = result.freeShipping;
       } catch (err) {
-        // কূপন এখন আর valid না (expired/min-order না মেলা ইত্যাদি) — silently সরিয়ে দিচ্ছি
         await this.prisma.cart.update({
           where: { id: cart.id },
           data: { couponCode: null },
@@ -124,7 +122,7 @@ export class CartService {
       }
     }
 
-    const shippingFee = freeShipping ? 0 : 0; // শিপিং মেথড module বসার আগ পর্যন্ত placeholder ০
+    const shippingFee = freeShipping ? 0 : 0;
     const tax = 0;
     const discount = productDiscount + couponDiscount;
     const total = Math.max(0, subtotal - couponDiscount + shippingFee + tax);
@@ -257,8 +255,22 @@ export class CartService {
     const cart = await this.getOrCreateCart(identity);
     const subtotal = await this.calculateSubtotal(cart.id);
 
-    // validate করে দেখছি, invalid হলে এখানেই error হয়ে যাবে (user সাথে সাথে জানবে)
-    await this.couponsService.validateAndCompute(code, subtotal);
+    const { coupon } = await this.couponsService.validateAndCompute(code, subtotal);
+
+    if (identity.userId && coupon.perUserLimit) {
+      const usedCount = await this.prisma.order.count({
+        where: {
+          userId: identity.userId,
+          couponCode: coupon.code,
+          status: { not: 'CANCELLED' },
+        },
+      });
+      if (usedCount >= coupon.perUserLimit) {
+        throw new BadRequestException(
+          'You have already used this coupon the maximum number of times.',
+        );
+      }
+    }
 
     await this.prisma.cart.update({
       where: { id: cart.id },
@@ -326,7 +338,6 @@ export class CartService {
       }
     }
 
-    // guest cart-এ কূপন থাকলে এবং user cart-এ না থাকলে, সেটাও নিয়ে আসি
     if (guestCart.couponCode && !userCart.couponCode) {
       await this.prisma.cart.update({
         where: { id: userCart.id },
@@ -339,7 +350,7 @@ export class CartService {
     return this.formatCart(userCart.id);
   }
 
-    // ---------------- CHECKOUT (Cart → Order conversion) ----------------
+  // ---------------- CHECKOUT (Cart → Order conversion) ----------------
   private generateOrderNumber() {
     const time = Date.now().toString(36).toUpperCase();
     const rand = Math.random().toString(36).substring(2, 5).toUpperCase();
@@ -350,8 +361,7 @@ export class CartService {
     const cart = await this.getOrCreateCart({ userId });
 
     return this.prisma.$transaction(async (tx) => {
-      // ১. Duplicate-click/double-submit protection — atomic flag flip
-    const locked = await tx.cart.updateMany({
+      const locked = await tx.cart.updateMany({
         where: { id: cart.id, status: 'ACTIVE' },
         data: { status: 'CONVERTED' },
       });
@@ -370,7 +380,6 @@ export class CartService {
         throw new BadRequestException('Your cart is empty.');
       }
 
-      // ২. Final stock + active-product validation, দাম এখন lock হচ্ছে
       let subtotal = 0;
       const orderItems: { productId: string; quantity: number; price: number }[] = [];
 
@@ -397,18 +406,32 @@ export class CartService {
         }
       }
 
-      // ৩. Coupon আবার যাচাই (checkout মুহূর্তে)
       let couponDiscount = 0;
       let appliedCoupon: { id: string } | null = null;
+      let usedCouponCode: string | undefined;
 
       if (cart.couponCode) {
         const coupon = await tx.coupon.findUnique({
           where: { code: cart.couponCode },
         });
         const now = new Date();
+
+        let perUserOk = true;
+        if (coupon?.perUserLimit) {
+          const usedCount = await tx.order.count({
+            where: {
+              userId,
+              couponCode: coupon.code,
+              status: { not: 'CANCELLED' },
+            },
+          });
+          perUserOk = usedCount < coupon.perUserLimit;
+        }
+
         const valid =
           coupon &&
           coupon.isActive &&
+          perUserOk &&
           (!coupon.startsAt || coupon.startsAt <= now) &&
           (!coupon.expiresAt || coupon.expiresAt >= now) &&
           (!coupon.usageLimit || coupon.usedCount < coupon.usageLimit) &&
@@ -424,39 +447,40 @@ export class CartService {
             couponDiscount = Math.min(coupon.value, subtotal);
           }
           appliedCoupon = { id: coupon.id };
+          usedCouponCode = coupon.code;
         }
-        // ভ্যালিড না হলে coupon silently বাদ (subtotal-ই total হবে, checkout আটকাবে না)
       }
 
-        let shippingFee = 0;
-        let shippingMethodName: string | undefined;
+      let shippingFee = 0;
+      let shippingMethodName: string | undefined;
 
-        if (dto.shippingMethodId) {
-          const method = await tx.shippingMethod.findUnique({
-            where: { id: dto.shippingMethodId },
-          });
-          if (method && method.isActive) {
-            shippingFee = method.rate;
-            shippingMethodName = method.name;
-          }
-        }
-
-        const totalAmount = Math.max(0, subtotal - couponDiscount) + shippingFee;
-
-        const order = await tx.order.create({
-          data: {
-            orderNumber: this.generateOrderNumber(),
-            userId,
-            totalAmount,
-            shippingFee,
-            shippingMethodName,
-            shippingAddress: dto.shippingAddress,
-            shippingPhone: dto.shippingPhone,
-            paymentMethod: dto.paymentMethod,
-            items: { create: orderItems },
-          },
-          include: { items: { include: { product: true } } },
+      if (dto.shippingMethodId) {
+        const method = await tx.shippingMethod.findUnique({
+          where: { id: dto.shippingMethodId },
         });
+        if (method && method.isActive) {
+          shippingFee = method.rate;
+          shippingMethodName = method.name;
+        }
+      }
+
+      const totalAmount = Math.max(0, subtotal - couponDiscount) + shippingFee;
+
+      const order = await tx.order.create({
+        data: {
+          orderNumber: this.generateOrderNumber(),
+          userId,
+          totalAmount,
+          shippingFee,
+          shippingMethodName,
+          couponCode: usedCouponCode,
+          shippingAddress: dto.shippingAddress,
+          shippingPhone: dto.shippingPhone,
+          paymentMethod: dto.paymentMethod,
+          items: { create: orderItems },
+        },
+        include: { items: { include: { product: true } } },
+      });
 
       if (appliedCoupon) {
         await tx.coupon.update({
@@ -465,7 +489,6 @@ export class CartService {
         });
       }
 
-      // ৪. Cart খালি করা + CONVERTED মার্ক করা
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
       await tx.cart.update({
         where: { id: cart.id },
@@ -475,5 +498,41 @@ export class CartService {
       return order;
     });
   }
-  //last brac
+
+  // ---------------- CANCEL (customer, own order only) ----------------
+  async cancelMyOrder(id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+
+      if (!order) {
+        throw new NotFoundException('Order not found.');
+      }
+
+      if (order.userId !== userId) {
+        throw new ForbiddenException('You cannot cancel this order.');
+      }
+
+      if (!['PENDING', 'PROCESSING'].includes(order.status)) {
+        throw new BadRequestException(
+          `Order cannot be cancelled once it is ${order.status.toLowerCase()}.`,
+        );
+      }
+
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+
+      return tx.order.update({
+        where: { id },
+        data: { status: 'CANCELLED' },
+        include: { items: true },
+      });
+    });
+  }
 }

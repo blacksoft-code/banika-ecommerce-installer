@@ -38,7 +38,7 @@ export default function OrderHistoryPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/orders/my`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/orders/my`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
