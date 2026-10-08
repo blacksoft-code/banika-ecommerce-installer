@@ -23,9 +23,14 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   // ---------- Public routes ----------
- @Get()
-findAll(@Query('category') category?: string) {
-  return this.productsService.findAll(category);
+@Get()
+findAll(@Query('category') category?: string, @Query('search') search?: string) {
+  return this.productsService.findAll(category, search);
+}
+
+@Get('suggest')
+suggest(@Query('q') q: string) {
+  return this.productsService.suggest(q);
 }
 
   @Get(':id')
